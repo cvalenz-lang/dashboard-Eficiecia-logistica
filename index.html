@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movimiento de Pallets por Grúa - Planta Isla de Maipo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+  <style>
+    body { background-color: #0b1120; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .card-dark { background-color: #131c31; border: 1px solid #1e293b; border-radius: 0.75rem; }
+    .card-highlight { background-color: #131c31; border: 1.5px solid #f59e0b; border-radius: 0.75rem; }
+    input, select { background-color: #0f172a !important; border-color: #334155 !important; color: #ffffff !important; }
+  </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex flex-col justify-between space-y-6">
+
+  <!-- URL DE APPS SCRIPT VSPT -->
+  <script>
+    const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbzkY0gtmJ2L_eNLFqxhAcHASXzQANmrebJOaQh_IkuCl4ky6NJEE7ZUJJxmQUv-Deg/exec"; 
+  </script>
+
+  <div class="max-w-[1400px] mx-auto w-full space-y-6">
+
+    <!-- ENCABEZADO Y PERIODO -->
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-slate-800 pb-4 gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-extrabold tracking-wide text-white uppercase">
+          MOVIMIENTO DE PALLETS POR GRÚA &bull; PLANTA ISLA DE MAIPO
+        </h1>
+        <p class="text-amber-500 font-semibold text-xs md:text-sm tracking-widest mt-1">
+          DATOS 100% REALES DESDE GOOGLE SHEETS &bull; cvalenz@vspt.cl
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <div class="flex items-center space-x-2 card-dark px-3 py-2 text-xs">
+          <span class="text-slate-400 font-bold uppercase">PERIODO:</span>
+          <input type="date" id="fechaInicio" value="2026-10-01" onchange="ejecutarFiltroPeriodo()" class="rounded px-2 py-1 text-white border focus:outline-none">
+          <span class="text-slate-500">-</span>
+          <input type="date" id="fechaFin" value="2026-10-31" onchange="ejecutarFiltroPeriodo()" class="rounded px-2 py-1 text-white border focus:outline-none">
+          <button onclick="ejecutarFiltroPeriodo()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1 rounded transition">Filtrar</button>
+        </div>
+
+        <button onclick="abrirModalConFechaActual()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-xl shadow-lg transition flex items-center space-x-2 text-sm tracking-wider uppercase ml-auto">
+          <span>+ Registrar Carga / Patente</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- PANEL DE PARÁMETROS -->
+    <div class="card-dark p-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+      <div class="flex items-center space-x-3">
+        <span class="text-xs font-bold text-slate-400 uppercase">Operadores Activos:</span>
+        <input type="number" id="numOperadores" value="7" min="1" max="50" onchange="ejecutarFiltroPeriodo()" class="w-16 text-center font-bold text-amber-400 p-1 rounded border">
+      </div>
+      <div class="flex items-center space-x-3">
+        <span class="text-xs font-bold text-slate-400 uppercase">Grúas en Operación:</span>
+        <input type="number" id="numGruas" value="3.5" step="0.5" min="1" max="20" onchange="ejecutarFiltroPeriodo()" class="w-16 text-center font-bold text-amber-400 p-1 rounded border">
+      </div>
+      <div class="flex items-center space-x-3">
+        <span class="text-xs font-bold text-slate-400 uppercase">Horas x Turno:</span>
+        <input type="number" id="horasTurno" value="7.5" step="0.5" min="1" max="12" onchange="ejecutarFiltroPeriodo()" class="w-16 text-center font-bold text-amber-400 p-1 rounded border">
+      </div>
+      <div class="text-right text-xs text-amber-400 font-semibold" id="estadoConexion">
+        ☁️ Sincronizado con Google Sheets
+      </div>
+    </div>
+
+    <!-- TARJETAS DE KPIS -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+      <div class="card-dark p-4 flex flex-col justify-between">
+        <div>
+          <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider block">TOTAL MOVIMIENTOS</span>
+          <span class="text-2xl md:text-3xl font-black text-white block mt-1" id="kpi-total">0</span>
+        </div>
+        <span class="text-[11px] text-slate-500 mt-2 block">entradas + salidas</span>
+      </div>
+
+      <div class="card-dark p-4 flex flex-col justify-between">
+        <div>
+          <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider block">OPERADORES / GRÚAS</span>
+          <span class="text-2xl md:text-3xl font-black text-white block mt-1"><span id="kpi-ops-val">7</span> / <span id="kpi-gruas-val">3,5</span></span>
+        </div>
+        <span class="text-[11px] text-slate-500 mt-2 block">dotación activa</span>
+      </div>
+
+      <div class="card-dark p-4 flex flex-col justify-between">
+        <div>
+          <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider block">PROMEDIO MENSUAL</span>
+          <span class="text-2xl md:text-3xl font-black text-white block mt-1" id="kpi-prom-mensual">0</span>
+        </div>
+        <span class="text-[11px] text-slate-500 mt-2 block">movimientos / mes</span>
+      </div>
+
+      <div class="card-highlight p-4 flex flex-col justify-between">
+        <div>
+          <span class="text-[10px] md:text-xs font-bold text-amber-500 uppercase tracking-wider block">PROMEDIO DIARIO PLANTA</span>
+          <span class="text-2xl md:text-3xl font-black text-amber-400 block mt-1" id="kpi-prom-diario">0</span>
+        </div>
+        <span class="text-[11px] text-slate-400 mt-2 block">total pallets / día</span>
+      </div>
+
+      <div class="card-highlight p-4 flex flex-col justify-between">
+        <div>
+          <span class="text-[10px] md:text-xs font-bold text-amber-500 uppercase tracking-wider block">PRODUCTIVIDAD x OP. / DÍA</span>
+          <span class="text-2xl md:text-3xl font-black text-amber-400 block mt-1" id="kpi-prod-op-dia">0</span>
+        </div>
+        <span class="text-[11px] text-slate-400 mt-2 block">mov / operador / día</span>
+      </div>
+
+      <div class="card-dark p-4 flex flex-col justify-between">
+        <div>
+          <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider block">PRODUCTIVIDAD x HORA</span>
+          <span class="text-2xl md:text-3xl font-black text-white block mt-1" id="kpi-prod-hora">0</span>
+        </div>
+        <span class="text-[11px] text-slate-500 mt-2 block">pallets / hora / op</span>
+      </div>
+    </div>
+
+    <!-- GRÁFICO PRINCIPAL -->
+    <div class="card-dark p-5">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-sm md:text-base font-bold text-white uppercase tracking-wider">
+          MOVIMIENTOS HISTÓRICOS POR MES (DATOS HOJA DE CÁLCULO)
+        </h2>
+      </div>
+      <div class="relative h-72 sm:h-80 md:h-96 w-full">
+        <canvas id="movesChart"></canvas>
+      </div>
+    </div>
+
+    <!-- BITÁCORA EN VIVO -->
+    <div class="card-dark p-5 space-y-3">
+      <h2 class="text-sm font-bold text-amber-500 uppercase tracking-wider">
+        Registros en Google Sheets VSPT
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-800 text-slate-300 uppercase">
+            <tr>
+              <th class="p-2">Fecha y Hora</th>
+              <th class="p-2">Patente Camión</th>
+              <th class="p-2">N° Grúa</th>
+              <th class="p-2">Operador</th>
+              <th class="p-2">Tipo Operación</th>
+              <th class="p-2 text-right">Pallets</th>
+            </tr>
+          </thead>
+          <tbody id="tablaHistorial" class="divide-y divide-slate-800 text-slate-200">
+            <tr><td colspan="6" class="p-4 text-center text-slate-500">Cargando datos VSPT...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL DE REGISTRO DE OPERADOR -->
+  <div id="modalCarga" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h3 class="text-lg font-black text-amber-500 tracking-wider uppercase">Registro de Operación en Piso</h3>
+        <button onclick="toggleModal(false)" class="text-slate-400 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+
+      <form onsubmit="guardarRegistro(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha y Hora de Registro</label>
+          <input type="datetime-local" id="inputFecha" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold text-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Patente del Camión</label>
+          <input type="text" id="inputPatente" placeholder="EJ: JJHH50" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold text-amber-400 uppercase tracking-widest">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-bold text-slate-400 uppercase">N° de Grúa</label>
+              <button type="button" onclick="agregarOpcion('inputGrua', 'Nombre de Grúa:')" class="text-[10px] text-amber-400 font-bold hover:underline">+ Agregar</button>
+            </div>
+            <select id="inputGrua" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
+              <option value="Grúa 01">Grúa 01</option>
+              <option value="Grúa 02">Grúa 02</option>
+              <option value="Grúa 03">Grúa 03</option>
+            </select>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-bold text-slate-400 uppercase">Operador</label>
+              <button type="button" onclick="agregarOpcion('inputOperador', 'Nombre Operador:')" class="text-[10px] text-amber-400 font-bold hover:underline">+ Agregar</button>
+            </div>
+            <select id="inputOperador" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
+              <option value="Carlos Muñoz">Carlos Muñoz</option>
+              <option value="Roberto Silva">Roberto Silva</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tipo Operación</label>
+          <select id="inputTipo" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
+            <option value="Carga Camión">Carga Camión</option>
+            <option value="Descarga Camión">Descarga Camión</option>
+            <option value="Recepción Producto Envasado">Recepción Producto Envasado</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Cantidad de Pallets Cargados</label>
+          <input type="number" id="inputCantidad" value="24" min="1" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-center text-3xl font-black text-amber-400">
+        </div>
+
+        <button type="submit" id="btnGuardar" class="w-full py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base rounded-xl uppercase tracking-wider transition">
+          Guardar en Servidor VSPT
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    Chart.register(ChartDataLabels);
+    let chartInstance;
+    let registrosPiso = [];
+
+    const nombresMeses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+
+    window.onload = () => {
+      const ctx = document.getElementById('movesChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: '#3b82f6', borderRadius: 4 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, datalabels: { color: '#fff', anchor: 'end', align: 'end' } }
+        }
+      });
+
+      cargarDatosJSONP();
+    };
+
+    function cargarDatosJSONP() {
+      const script = document.createElement('script');
+      script.src = `${URL_GOOGLE_SCRIPT}?callback=recibirDatosVSPT&t=${new Date().getTime()}`;
+      document.body.appendChild(script);
+    }
+
+    window.recibirDatosVSPT = function(data) {
+      if (Array.isArray(data)) {
+        registrosPiso = data.map(item => ({
+          fecha: String(item.Fecha_Hora || item.fecha || ''),
+          patente: String(item.Patente_Camion || item.patente || ''),
+          grua: String(item.No_Grua || item.grua || ''),
+          operador: String(item.Operador || item.operador || ''),
+          tipo: String(item.Tipo_Operacion || item.tipo || ''),
+          pallets: Number(item.Cantidad_Pallets || item.pallets || 0)
+        })).filter(r => r.fecha !== '').reverse();
+      }
+      ejecutarFiltroPeriodo();
+    };
+
+    function ejecutarFiltroPeriodo() {
+      const fInicioStr = document.getElementById('fechaInicio').value;
+      const fFinStr = document.getElementById('fechaFin').value;
+
+      if (!fInicioStr || !fFinStr) return;
+
+      const fInicio = new Date(fInicioStr + 'T00:00:00');
+      const fFin = new Date(fFinStr + 'T23:59:59');
+
+      // 1. Filtrar registros en el rango seleccionado
+      const historialFiltrado = registrosPiso.filter(r => {
+        let fReg = new Date(r.fecha);
+        if (isNaN(fReg.getTime())) fReg = new Date(r.fecha.replace(' ', 'T'));
+        return fReg >= fInicio && fReg <= fFin;
+      });
+
+      renderTablaHistorial(historialFiltrado);
+
+      // 2. Agrupar por mes y calcular días únicos con actividad real
+      const acumuladoPorMes = {};
+      const diasUnicosConMovimiento = new Set();
+      let totalPalletsPeriodo = 0;
+
+      historialFiltrado.forEach(r => {
+        let fReg = new Date(r.fecha);
+        if (isNaN(fReg.getTime())) fReg = new Date(r.fecha.replace(' ', 'T'));
+        
+        if (!isNaN(fReg.getTime())) {
+          const mesNombre = nombresMeses[fReg.getMonth()];
+          acumuladoPorMes[mesNombre] = (acumuladoPorMes[mesNombre] || 0) + r.pallets;
+          totalPalletsPeriodo += r.pallets;
+          diasUnicosConMovimiento.add(fReg.toISOString().slice(0, 10));
+        }
+      });
+
+      // 3. Actualizar gráfico
+      const labelsChart = Object.keys(acumuladoPorMes);
+      const dataChart = Object.values(acumuladoPorMes);
+
+      if (labelsChart.length === 0) {
+        chartInstance.data.labels = ['Sin Datos'];
+        chartInstance.data.datasets[0].data = [0];
+      } else {
+        chartInstance.data.labels = labelsChart;
+        chartInstance.data.datasets[0].data = dataChart;
+      }
+      chartInstance.update();
+
+      // 4. Recalcular KPIs con manejo inteligente de días activos y decimales
+      const ops = parseFloat(document.getElementById('numOperadores').value) || 7;
+      const gruas = parseFloat(document.getElementById('numGruas').value) || 3.5;
+      const hrs = parseFloat(document.getElementById('horasTurno').value) || 7.5;
+
+      document.getElementById('kpi-ops-val').innerText = ops;
+      document.getElementById('kpi-gruas-val').innerText = gruas;
+
+      const cantMeses = Math.max(1, labelsChart.length);
+      // Usar los días con movimiento o como mínimo 1 día si es un registro reciente
+      const diasEfectivos = Math.max(1, diasUnicosConMovimiento.size);
+
+      const promMensual = (totalPalletsPeriodo / cantMeses).toFixed(0);
+      const promDiarioPlanta = (totalPalletsPeriodo / diasEfectivos).toFixed(1).replace('.0', '');
+      const prodOpDia = (promDiarioPlanta / ops).toFixed(1).replace('.0', '');
+      const prodHora = (prodOpDia / hrs).toFixed(1).replace('.0', '');
+
+      document.getElementById('kpi-total').innerText = totalPalletsPeriodo.toLocaleString('es-CL');
+      document.getElementById('kpi-prom-mensual').innerText = Number(promMensual).toLocaleString('es-CL');
+      document.getElementById('kpi-prom-diario').innerText = String(promDiarioPlanta).replace('.', ',');
+      document.getElementById('kpi-prod-op-dia').innerText = String(prodOpDia).replace('.', ',');
+      document.getElementById('kpi-prod-hora').innerText = String(prodHora).replace('.', ',');
+    }
+
+    function renderTablaHistorial(lista) {
+      const tbody = document.getElementById('tablaHistorial');
+      tbody.innerHTML = '';
+
+      if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">No hay movimientos registrados en este rango de fechas.</td></tr>`;
+        return;
+      }
+
+      lista.forEach(r => {
+        let colorClase = "text-amber-300";
+        if (r.tipo === "Carga Camión") colorClase = "text-green-400";
+        if (r.tipo === "Descarga Camión") colorClase = "text-blue-400";
+        if (r.tipo === "Recepción Producto Envasado") colorClase = "text-purple-400";
+
+        const row = `<tr>
+          <td class="p-2 text-slate-400">${r.fecha}</td>
+          <td class="p-2 font-bold text-amber-400">${r.patente}</td>
+          <td class="p-2">${r.grua}</td>
+          <td class="p-2">${r.operador}</td>
+          <td class="p-2 font-semibold ${colorClase}">${r.tipo}</td>
+          <td class="p-2 text-right font-bold">${r.pallets}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    function abrirModalConFechaActual() {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      document.getElementById('inputFecha').value = now.toISOString().slice(0, 16);
+      toggleModal(true);
+    }
+
+    function agregarOpcion(selectId, mensajePrompt) {
+      const nuevoValor = prompt(mensajePrompt);
+      if (nuevoValor && nuevoValor.trim() !== "") {
+        const select = document.getElementById(selectId);
+        const option = document.createElement("option");
+        option.value = nuevoValor.trim();
+        option.text = nuevoValor.trim();
+        option.selected = true;
+        select.add(option);
+      }
+    }
+
+    function toggleModal(show) { document.getElementById('modalCarga').classList.toggle('hidden', !show); }
+
+    function guardarRegistro(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnGuardar');
+      btn.innerText = "Guardando en VSPT Cloud...";
+      btn.disabled = true;
+
+      const f = encodeURIComponent(document.getElementById('inputFecha').value.replace('T', ' '));
+      const p = encodeURIComponent(document.getElementById('inputPatente').value.toUpperCase());
+      const g = encodeURIComponent(document.getElementById('inputGrua').value);
+      const o = encodeURIComponent(document.getElementById('inputOperador').value);
+      const t = encodeURIComponent(document.getElementById('inputTipo').value);
+      const c = parseInt(document.getElementById('inputCantidad').value) || 0;
+
+      const script = document.createElement('script');
+      script.src = `${URL_GOOGLE_SCRIPT}?fecha=${f}&patente=${p}&grua=${g}&operador=${o}&tipo=${t}&pallets=${c}&callback=confirmarGuardadoVSPT`;
+      document.body.appendChild(script);
+    }
+
+    window.confirmarGuardadoVSPT = function(res) {
+      document.getElementById('btnGuardar').innerText = "Guardar en Servidor VSPT";
+      document.getElementById('btnGuardar').disabled = false;
+      toggleModal(false);
+      cargarDatosJSONP();
+      alert("¡Registro enviado y sincronizado exitosamente en Google Sheets VSPT!");
+    };
+  </script>
+</body>
+</html>
