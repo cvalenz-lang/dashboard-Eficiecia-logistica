@@ -20,7 +20,7 @@
 
   <!-- URL DE APPS SCRIPT VSPT -->
   <script>
-    const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbzkY0gtmJ2L_eNLFqxhAcHASXzQANmrebJOaQh_IkuCl4ky6NJEE7ZUJJxmQUv-Deg/exec"; 
+    const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbxRGKmWm2HhApC46B4fYdRrQJrAIWEw9QF0E9-jL92DEYQKWReL0uMX38Bu1CojWvcysQ/exec"; 
   </script>
 
   <div class="max-w-[1400px] mx-auto w-full space-y-6">
@@ -121,7 +121,7 @@
       </div>
     </div>
 
-    <!-- GRÁFICO PRINCIPAL -->
+    <!-- GRÁFICO PRINCIPAL CON MARGEN SUPERIOR AUTOMÁTICO -->
     <div class="card-dark p-5">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
         <h2 class="text-sm md:text-base font-bold text-white uppercase tracking-wider">
@@ -143,7 +143,7 @@
       </div>
     </div>
 
-    <!-- BITÁCORA EN VIVO CON PATENTE Y TURNO SEPARADOS -->
+    <!-- BITÁCORA EN VIVO -->
     <div class="card-dark p-5 space-y-3">
       <h2 class="text-sm font-bold text-amber-500 uppercase tracking-wider">
         Registros en Google Sheets VSPT
@@ -217,9 +217,7 @@
               </div>
             </div>
             <select id="inputGrua" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
-              <option value="Grúa 01">Grúa 01</option>
-              <option value="Grúa 02">Grúa 02</option>
-              <option value="Grúa 03">Grúa 03</option>
+              <!-- Cargado dinámicamente -->
             </select>
           </div>
 
@@ -232,8 +230,7 @@
               </div>
             </div>
             <select id="inputOperador" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
-              <option value="Carlos Muñoz">Carlos Muñoz</option>
-              <option value="Roberto Silva">Roberto Silva</option>
+              <!-- Cargado dinámicamente -->
             </select>
           </div>
         </div>
@@ -263,23 +260,92 @@
       6: '#ec4899', 7: '#14b8a6', 8: '#3b82f6', 9: '#10b981', 10: '#eab308', 11: '#6366f1'
     };
 
+    let listaGruas = JSON.parse(localStorage.getItem('vspt_lista_gruas')) || ["Grúa 01", "Grúa 02", "Grúa 03"];
+    let listaOperadores = JSON.parse(localStorage.getItem('vspt_lista_operadores')) || ["Carlos Muñoz", "Roberto Silva", "Juan Pérez"];
+
     window.onload = () => {
+      renderSelectsPersistentes();
+
       const ctx = document.getElementById('movesChart').getContext('2d');
       chartInstance = new Chart(ctx, {
         type: 'bar',
         data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 8, maxBarThickness: 65 }] },
         options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, datalabels: { color: '#ffffff', anchor: 'end', align: 'end', font: { weight: 'bold', size: 13 } } },
+          responsive: true, 
+          maintainAspectRatio: false,
+          layout: {
+            padding: { top: 25 } // Espacio adicional superior
+          },
+          plugins: { 
+            legend: { display: false }, 
+            datalabels: { 
+              color: '#ffffff', 
+              anchor: 'end', 
+              align: 'end', 
+              offset: 4,
+              clamp: true,
+              clip: false,
+              font: { weight: 'bold', size: 13 },
+              formatter: (val) => val > 0 ? val.toLocaleString('es-CL') : ''
+            } 
+          },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { weight: 'bold' } } },
-            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, beginAtZero: true }
+            y: { 
+              grid: { color: '#1e293b' }, 
+              ticks: { color: '#64748b' }, 
+              beginAtZero: true,
+              grace: '15%' // <--- MARGEN AUTOMÁTICO SUPERIOR DEL 15% PARA QUE EL NÚMERO NUNCA SE TAPARÁ
+            }
           }
         }
       });
 
       cargarDatosJSONP();
     };
+
+    function renderSelectsPersistentes() {
+      const selectGrua = document.getElementById('inputGrua');
+      const selectOp = document.getElementById('inputOperador');
+
+      selectGrua.innerHTML = listaGruas.map(g => `<option value="${g}">${g}</option>`).join('');
+      selectOp.innerHTML = listaOperadores.map(o => `<option value="${o}">${o}</option>`).join('');
+    }
+
+    function agregarOpcion(selectId, mensajePrompt) {
+      const nuevoValor = prompt(mensajePrompt);
+      if (nuevoValor && nuevoValor.trim() !== "") {
+        const val = nuevoValor.trim();
+        if (selectId === 'inputGrua') {
+          if (!listaGruas.includes(val)) listaGruas.push(val);
+          localStorage.setItem('vspt_lista_gruas', JSON.stringify(listaGruas));
+        } else {
+          if (!listaOperadores.includes(val)) listaOperadores.push(val);
+          localStorage.setItem('vspt_lista_operadores', JSON.stringify(listaOperadores));
+        }
+        renderSelectsPersistentes();
+        document.getElementById(selectId).value = val;
+      }
+    }
+
+    function eliminarOpcion(selectId) {
+      const select = document.getElementById(selectId);
+      if (select.options.length <= 1) {
+        alert("Debe haber al menos un elemento disponible en la lista.");
+        return;
+      }
+      const val = select.value;
+      if (confirm(`¿Estás seguro de eliminar '${val}' de la lista?`)) {
+        if (selectId === 'inputGrua') {
+          listaGruas = listaGruas.filter(g => g !== val);
+          localStorage.setItem('vspt_lista_gruas', JSON.stringify(listaGruas));
+        } else {
+          listaOperadores = listaOperadores.filter(o => o !== val);
+          localStorage.setItem('vspt_lista_operadores', JSON.stringify(listaOperadores));
+        }
+        renderSelectsPersistentes();
+      }
+    }
 
     function cargarDatosJSONP() {
       document.getElementById('estadoConexion').innerText = "🔄 Leyendo Google Sheets...";
@@ -459,30 +525,6 @@
       } else {
         contPatente.classList.remove('hidden');
         inputPatente.setAttribute('required', 'true');
-      }
-    }
-
-    function agregarOpcion(selectId, mensajePrompt) {
-      const nuevoValor = prompt(mensajePrompt);
-      if (nuevoValor && nuevoValor.trim() !== "") {
-        const select = document.getElementById(selectId);
-        const option = document.createElement("option");
-        option.value = nuevoValor.trim();
-        option.text = nuevoValor.trim();
-        option.selected = true;
-        select.add(option);
-      }
-    }
-
-    function eliminarOpcion(selectId) {
-      const select = document.getElementById(selectId);
-      if (select.options.length <= 1) {
-        alert("Debe haber al menos un elemento disponible en la lista.");
-        return;
-      }
-      const opcionSeleccionada = select.options[select.selectedIndex].text;
-      if (confirm(`¿Estás seguro de eliminar '${opcionSeleccionada}' de la lista?`)) {
-        select.remove(select.selectedIndex);
       }
     }
 
