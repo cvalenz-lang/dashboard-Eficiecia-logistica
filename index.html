@@ -12,6 +12,8 @@
     .card-dark { background-color: #131c31; border: 1px solid #1e293b; border-radius: 0.75rem; }
     .card-highlight { background-color: #131c31; border: 1.5px solid #f59e0b; border-radius: 0.75rem; }
     input, select { background-color: #0f172a !important; border-color: #334155 !important; color: #ffffff !important; }
+    .btn-toggle-active { background-color: #f59e0b !important; color: #0f172a !important; font-weight: 800; }
+    .btn-toggle-inactive { background-color: #1e293b !important; color: #94a3b8 !important; }
   </style>
 </head>
 <body class="p-4 md:p-6 min-h-screen flex flex-col justify-between space-y-6">
@@ -37,10 +39,10 @@
       <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
         <div class="flex items-center space-x-2 card-dark px-3 py-2 text-xs">
           <span class="text-slate-400 font-bold uppercase">PERIODO:</span>
-          <input type="date" id="fechaInicio" value="2026-10-01" onchange="ejecutarFiltroPeriodo()" class="rounded px-2 py-1 text-white border focus:outline-none">
+          <input type="date" id="fechaInicio" value="2026-09-01" onchange="ejecutarFiltroPeriodo()" class="rounded px-2 py-1 text-white border focus:outline-none">
           <span class="text-slate-500">-</span>
           <input type="date" id="fechaFin" value="2026-10-31" onchange="ejecutarFiltroPeriodo()" class="rounded px-2 py-1 text-white border focus:outline-none">
-          <button onclick="ejecutarFiltroPeriodo()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1 rounded transition">Filtrar</button>
+          <button onclick="cargarDatosJSONP()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1 rounded transition">🔄 Actualizar Nube</button>
         </div>
 
         <button onclick="abrirModalConFechaActual()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-xl shadow-lg transition flex items-center space-x-2 text-sm tracking-wider uppercase ml-auto">
@@ -121,11 +123,21 @@
 
     <!-- GRÁFICO PRINCIPAL -->
     <div class="card-dark p-5">
-      <div class="flex justify-between items-center mb-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
         <h2 class="text-sm md:text-base font-bold text-white uppercase tracking-wider">
-          MOVIMIENTOS HISTÓRICOS POR MES (DATOS HOJA DE CÁLCULO)
+          MOVIMIENTOS HISTÓRICOS (DATOS HOJA DE CÁLCULO)
         </h2>
+        
+        <div class="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-700">
+          <button id="btnVistaMensual" onclick="cambiarVistaGrafico('mensual')" class="px-3 py-1.5 text-xs rounded-lg transition btn-toggle-active">
+            Vista Mensual
+          </button>
+          <button id="btnVistaDiario" onclick="cambiarVistaGrafico('diario')" class="px-3 py-1.5 text-xs rounded-lg transition btn-toggle-inactive">
+            Vista Diaria
+          </button>
+        </div>
       </div>
+
       <div class="relative h-72 sm:h-80 md:h-96 w-full">
         <canvas id="movesChart"></canvas>
       </div>
@@ -141,7 +153,7 @@
           <thead class="bg-slate-800 text-slate-300 uppercase">
             <tr>
               <th class="p-2">Fecha y Hora</th>
-              <th class="p-2">Patente Camión</th>
+              <th class="p-2">Patente / Turno</th>
               <th class="p-2">N° Grúa</th>
               <th class="p-2">Operador</th>
               <th class="p-2">Tipo Operación</th>
@@ -167,20 +179,41 @@
 
       <form onsubmit="guardarRegistro(event)" class="space-y-4">
         <div>
+          <label class="block text-xs font-bold text-amber-400 uppercase mb-1">Tipo de Operación</label>
+          <select id="inputTipo" onchange="evaluarCamposPorTipo()" required class="w-full bg-slate-800 border-2 border-amber-500/50 rounded-xl p-3 font-bold text-white">
+            <option value="Carga Camión">Carga Camión</option>
+            <option value="Descarga Camión">Descarga Camión</option>
+            <option value="Recepción Producto Envasado">Recepción Producto Envasado</option>
+          </select>
+        </div>
+
+        <div>
           <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha y Hora de Registro</label>
           <input type="datetime-local" id="inputFecha" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold text-white">
         </div>
 
-        <div>
+        <div id="contenedorPatente">
           <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Patente del Camión</label>
-          <input type="text" id="inputPatente" placeholder="EJ: JJHH50" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold text-amber-400 uppercase tracking-widest">
+          <input type="text" id="inputPatente" placeholder="EJ: JJHH50" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold text-amber-400 uppercase tracking-widest">
+        </div>
+
+        <div id="contenedorTurno" class="hidden">
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Turno de Trabajo</label>
+          <select id="inputTurno" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
+            <option value="Turno Día (Mañana)">Turno Día (Mañana)</option>
+            <option value="Turno Tarde">Turno Tarde</option>
+            <option value="Turno Noche">Turno Noche</option>
+          </select>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
             <div class="flex justify-between items-center mb-1">
               <label class="block text-xs font-bold text-slate-400 uppercase">N° de Grúa</label>
-              <button type="button" onclick="agregarOpcion('inputGrua', 'Nombre de Grúa:')" class="text-[10px] text-amber-400 font-bold hover:underline">+ Agregar</button>
+              <div class="space-x-1">
+                <button type="button" onclick="agregarOpcion('inputGrua', 'Nombre de Grúa:')" class="text-[10px] text-amber-400 font-bold hover:underline">+Agregar</button>
+                <button type="button" onclick="eliminarOpcion('inputGrua')" class="text-[10px] text-red-400 font-bold hover:underline">-Eliminar</button>
+              </div>
             </div>
             <select id="inputGrua" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
               <option value="Grúa 01">Grúa 01</option>
@@ -192,7 +225,10 @@
           <div>
             <div class="flex justify-between items-center mb-1">
               <label class="block text-xs font-bold text-slate-400 uppercase">Operador</label>
-              <button type="button" onclick="agregarOpcion('inputOperador', 'Nombre Operador:')" class="text-[10px] text-amber-400 font-bold hover:underline">+ Agregar</button>
+              <div class="space-x-1">
+                <button type="button" onclick="agregarOpcion('inputOperador', 'Nombre Operador:')" class="text-[10px] text-amber-400 font-bold hover:underline">+Agregar</button>
+                <button type="button" onclick="eliminarOpcion('inputOperador')" class="text-[10px] text-red-400 font-bold hover:underline">-Eliminar</button>
+              </div>
             </div>
             <select id="inputOperador" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
               <option value="Carlos Muñoz">Carlos Muñoz</option>
@@ -202,16 +238,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tipo Operación</label>
-          <select id="inputTipo" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
-            <option value="Carga Camión">Carga Camión</option>
-            <option value="Descarga Camión">Descarga Camión</option>
-            <option value="Recepción Producto Envasado">Recepción Producto Envasado</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Cantidad de Pallets Cargados</label>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Cantidad de Pallets</label>
           <input type="number" id="inputCantidad" value="24" min="1" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-center text-3xl font-black text-amber-400">
         </div>
 
@@ -226,17 +253,41 @@
     Chart.register(ChartDataLabels);
     let chartInstance;
     let registrosPiso = [];
+    let vistaGraficoActual = 'mensual';
 
     const nombresMeses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+    
+    // Paleta de Colores Fijos por Mes
+    const coloresPorMes = {
+      0: '#3b82f6',  // Enero: Azul Zafiro
+      1: '#f59e0b',  // Febrero: Ámbar
+      2: '#10b981',  // Marzo: Verde Esmeralda
+      3: '#8b5cf6',  // Abril: Púrpura
+      4: '#06b6d4',  // Mayo: Cían
+      5: '#f97316',  // Junio: Naranja
+      6: '#ec4899',  // Julio: Magenta
+      7: '#14b8a6',  // Agosto: Turquesa
+      8: '#3b82f6',  // Septiembre: Azul
+      9: '#10b981',  // Octubre: Verde
+      10: '#eab308', // Noviembre: Amarillo
+      11: '#6366f1'  // Diciembre: Índigo
+    };
 
     window.onload = () => {
       const ctx = document.getElementById('movesChart').getContext('2d');
       chartInstance = new Chart(ctx, {
         type: 'bar',
-        data: { labels: [], datasets: [{ data: [], backgroundColor: '#3b82f6', borderRadius: 4 }] },
+        data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 8, maxBarThickness: 65 }] },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, datalabels: { color: '#fff', anchor: 'end', align: 'end' } }
+          plugins: { 
+            legend: { display: false }, 
+            datalabels: { color: '#ffffff', anchor: 'end', align: 'end', font: { weight: 'bold', size: 13 } } 
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { weight: 'bold' } } },
+            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, beginAtZero: true }
+          }
         }
       });
 
@@ -244,12 +295,17 @@
     };
 
     function cargarDatosJSONP() {
+      document.getElementById('estadoConexion').innerText = "🔄 Leyendo Google Sheets...";
+      const timeStamp = new Date().getTime();
       const script = document.createElement('script');
-      script.src = `${URL_GOOGLE_SCRIPT}?callback=recibirDatosVSPT&t=${new Date().getTime()}`;
+      script.src = `${URL_GOOGLE_SCRIPT}?callback=recibirDatosVSPT&_nocache=${timeStamp}`;
       document.body.appendChild(script);
     }
 
     window.recibirDatosVSPT = function(data) {
+      document.getElementById('estadoConexion').innerText = "☁️ Sincronizado con Google Sheets";
+      registrosPiso = [];
+
       if (Array.isArray(data)) {
         registrosPiso = data.map(item => ({
           fecha: String(item.Fecha_Hora || item.fecha || ''),
@@ -260,8 +316,24 @@
           pallets: Number(item.Cantidad_Pallets || item.pallets || 0)
         })).filter(r => r.fecha !== '').reverse();
       }
+
       ejecutarFiltroPeriodo();
     };
+
+    function cambiarVistaGrafico(tipoVista) {
+      vistaGraficoActual = tipoVista;
+      const btnM = document.getElementById('btnVistaMensual');
+      const btnD = document.getElementById('btnVistaDiario');
+
+      if (tipoVista === 'mensual') {
+        btnM.className = 'px-3 py-1.5 text-xs rounded-lg transition btn-toggle-active';
+        btnD.className = 'px-3 py-1.5 text-xs rounded-lg transition btn-toggle-inactive';
+      } else {
+        btnD.className = 'px-3 py-1.5 text-xs rounded-lg transition btn-toggle-active';
+        btnM.className = 'px-3 py-1.5 text-xs rounded-lg transition btn-toggle-inactive';
+      }
+      ejecutarFiltroPeriodo();
+    }
 
     function ejecutarFiltroPeriodo() {
       const fInicioStr = document.getElementById('fechaInicio').value;
@@ -272,7 +344,7 @@
       const fInicio = new Date(fInicioStr + 'T00:00:00');
       const fFin = new Date(fFinStr + 'T23:59:59');
 
-      // 1. Filtrar registros en el rango seleccionado
+      // 1. Filtrar registros del periodo
       const historialFiltrado = registrosPiso.filter(r => {
         let fReg = new Date(r.fecha);
         if (isNaN(fReg.getTime())) fReg = new Date(r.fecha.replace(' ', 'T'));
@@ -281,37 +353,62 @@
 
       renderTablaHistorial(historialFiltrado);
 
-      // 2. Agrupar por mes y calcular días únicos con actividad real
-      const acumuladoPorMes = {};
+      // Ordenar cronológicamente
+      const historialOrdenadoCronologico = [...historialFiltrado].sort((a, b) => {
+        let fA = new Date(a.fecha.replace(' ', 'T'));
+        let fB = new Date(b.fecha.replace(' ', 'T'));
+        return fA - fB;
+      });
+
+      const acumuladoGrafico = {};
+      const mesIndiceAsociado = {}; // Guarda el número de mes para asignar el color único
       const diasUnicosConMovimiento = new Set();
       let totalPalletsPeriodo = 0;
 
-      historialFiltrado.forEach(r => {
+      historialOrdenadoCronologico.forEach(r => {
         let fReg = new Date(r.fecha);
         if (isNaN(fReg.getTime())) fReg = new Date(r.fecha.replace(' ', 'T'));
         
         if (!isNaN(fReg.getTime())) {
-          const mesNombre = nombresMeses[fReg.getMonth()];
-          acumuladoPorMes[mesNombre] = (acumuladoPorMes[mesNombre] || 0) + r.pallets;
+          let claveGrafico = "";
+          const numMes = fReg.getMonth();
+
+          if (vistaGraficoActual === 'mensual') {
+            claveGrafico = `${nombresMeses[numMes]} ${fReg.getFullYear()}`;
+          } else {
+            const dia = String(fReg.getDate()).padStart(2, '0');
+            const mesNombreCorto = nombresMeses[numMes].slice(0, 3);
+            claveGrafico = `${dia}-${mesNombreCorto}`;
+          }
+
+          acumuladoGrafico[claveGrafico] = (acumuladoGrafico[claveGrafico] || 0) + r.pallets;
+          mesIndiceAsociado[claveGrafico] = numMes; // Asocia la barra con su mes correspondiente
           totalPalletsPeriodo += r.pallets;
           diasUnicosConMovimiento.add(fReg.toISOString().slice(0, 10));
         }
       });
 
-      // 3. Actualizar gráfico
-      const labelsChart = Object.keys(acumuladoPorMes);
-      const dataChart = Object.values(acumuladoPorMes);
+      const labelsChart = Object.keys(acumuladoGrafico);
+      const dataChart = Object.values(acumuladoGrafico);
+
+      // ASIGNACIÓN DE COLOR: Se busca el color correspondiente al mes de CADA BARRA
+      const coloresBarras = labelsChart.map(clave => {
+        const idxMes = mesIndiceAsociado[clave];
+        return coloresPorMes[idxMes] || '#3b82f6';
+      });
 
       if (labelsChart.length === 0) {
         chartInstance.data.labels = ['Sin Datos'];
         chartInstance.data.datasets[0].data = [0];
+        chartInstance.data.datasets[0].backgroundColor = ['#3b82f6'];
       } else {
         chartInstance.data.labels = labelsChart;
         chartInstance.data.datasets[0].data = dataChart;
+        chartInstance.data.datasets[0].backgroundColor = coloresBarras;
       }
       chartInstance.update();
 
-      // 4. Recalcular KPIs con manejo inteligente de días activos y decimales
+      // Recalcular KPIs
       const ops = parseFloat(document.getElementById('numOperadores').value) || 7;
       const gruas = parseFloat(document.getElementById('numGruas').value) || 3.5;
       const hrs = parseFloat(document.getElementById('horasTurno').value) || 7.5;
@@ -319,8 +416,7 @@
       document.getElementById('kpi-ops-val').innerText = ops;
       document.getElementById('kpi-gruas-val').innerText = gruas;
 
-      const cantMeses = Math.max(1, labelsChart.length);
-      // Usar los días con movimiento o como mínimo 1 día si es un registro reciente
+      const cantMeses = Math.max(1, Object.keys(acumuladoGrafico).length);
       const diasEfectivos = Math.max(1, diasUnicosConMovimiento.size);
 
       const promMensual = (totalPalletsPeriodo / cantMeses).toFixed(0);
@@ -366,7 +462,25 @@
       const now = new Date();
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       document.getElementById('inputFecha').value = now.toISOString().slice(0, 16);
+      evaluarCamposPorTipo();
       toggleModal(true);
+    }
+
+    function evaluarCamposPorTipo() {
+      const tipo = document.getElementById('inputTipo').value;
+      const contPatente = document.getElementById('contenedorPatente');
+      const contTurno = document.getElementById('contenedorTurno');
+      const inputPatente = document.getElementById('inputPatente');
+
+      if (tipo === 'Recepción Producto Envasado') {
+        contPatente.classList.add('hidden');
+        contTurno.classList.remove('hidden');
+        inputPatente.removeAttribute('required');
+      } else {
+        contPatente.classList.remove('hidden');
+        contTurno.classList.add('hidden');
+        inputPatente.setAttribute('required', 'true');
+      }
     }
 
     function agregarOpcion(selectId, mensajePrompt) {
@@ -381,6 +495,18 @@
       }
     }
 
+    function eliminarOpcion(selectId) {
+      const select = document.getElementById(selectId);
+      if (select.options.length <= 1) {
+        alert("Debe haber al menos un elemento disponible en la lista.");
+        return;
+      }
+      const opcionSeleccionada = select.options[select.selectedIndex].text;
+      if (confirm(`¿Estás seguro de eliminar '${opcionSeleccionada}' de la lista?`)) {
+        select.remove(select.selectedIndex);
+      }
+    }
+
     function toggleModal(show) { document.getElementById('modalCarga').classList.toggle('hidden', !show); }
 
     function guardarRegistro(e) {
@@ -389,11 +515,18 @@
       btn.innerText = "Guardando en VSPT Cloud...";
       btn.disabled = true;
 
+      const tipo = document.getElementById('inputTipo').value;
+      let patenteValor = document.getElementById('inputPatente').value.toUpperCase();
+      
+      if (tipo === 'Recepción Producto Envasado') {
+        patenteValor = document.getElementById('inputTurno').value;
+      }
+
       const f = encodeURIComponent(document.getElementById('inputFecha').value.replace('T', ' '));
-      const p = encodeURIComponent(document.getElementById('inputPatente').value.toUpperCase());
+      const p = encodeURIComponent(patenteValor);
       const g = encodeURIComponent(document.getElementById('inputGrua').value);
       const o = encodeURIComponent(document.getElementById('inputOperador').value);
-      const t = encodeURIComponent(document.getElementById('inputTipo').value);
+      const t = encodeURIComponent(tipo);
       const c = parseInt(document.getElementById('inputCantidad').value) || 0;
 
       const script = document.createElement('script');
@@ -405,7 +538,7 @@
       document.getElementById('btnGuardar').innerText = "Guardar en Servidor VSPT";
       document.getElementById('btnGuardar').disabled = false;
       toggleModal(false);
-      cargarDatosJSONP();
+      setTimeout(cargarDatosJSONP, 1000);
       alert("¡Registro enviado y sincronizado exitosamente en Google Sheets VSPT!");
     };
   </script>
