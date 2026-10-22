@@ -143,7 +143,7 @@
       </div>
     </div>
 
-    <!-- BITÁCORA EN VIVO -->
+    <!-- BITÁCORA EN VIVO CON PATENTE Y TURNO SEPARADOS -->
     <div class="card-dark p-5 space-y-3">
       <h2 class="text-sm font-bold text-amber-500 uppercase tracking-wider">
         Registros en Google Sheets VSPT
@@ -153,7 +153,8 @@
           <thead class="bg-slate-800 text-slate-300 uppercase">
             <tr>
               <th class="p-2">Fecha y Hora</th>
-              <th class="p-2">Patente / Turno</th>
+              <th class="p-2">Patente Camión</th>
+              <th class="p-2">Turno</th>
               <th class="p-2">N° Grúa</th>
               <th class="p-2">Operador</th>
               <th class="p-2">Tipo Operación</th>
@@ -161,7 +162,7 @@
             </tr>
           </thead>
           <tbody id="tablaHistorial" class="divide-y divide-slate-800 text-slate-200">
-            <tr><td colspan="6" class="p-4 text-center text-slate-500">Cargando datos VSPT...</td></tr>
+            <tr><td colspan="7" class="p-4 text-center text-slate-500">Cargando datos VSPT...</td></tr>
           </tbody>
         </table>
       </div>
@@ -197,7 +198,7 @@
           <input type="text" id="inputPatente" placeholder="EJ: JJHH50" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold text-amber-400 uppercase tracking-widest">
         </div>
 
-        <div id="contenedorTurno" class="hidden">
+        <div>
           <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Turno de Trabajo</label>
           <select id="inputTurno" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 font-bold">
             <option value="Turno Día (Mañana)">Turno Día (Mañana)</option>
@@ -257,20 +258,9 @@
 
     const nombresMeses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
     
-    // Paleta de Colores Fijos por Mes
     const coloresPorMes = {
-      0: '#3b82f6',  // Enero: Azul Zafiro
-      1: '#f59e0b',  // Febrero: Ámbar
-      2: '#10b981',  // Marzo: Verde Esmeralda
-      3: '#8b5cf6',  // Abril: Púrpura
-      4: '#06b6d4',  // Mayo: Cían
-      5: '#f97316',  // Junio: Naranja
-      6: '#ec4899',  // Julio: Magenta
-      7: '#14b8a6',  // Agosto: Turquesa
-      8: '#3b82f6',  // Septiembre: Azul
-      9: '#10b981',  // Octubre: Verde
-      10: '#eab308', // Noviembre: Amarillo
-      11: '#6366f1'  // Diciembre: Índigo
+      0: '#3b82f6', 1: '#f59e0b', 2: '#10b981', 3: '#8b5cf6', 4: '#06b6d4', 5: '#f97316',
+      6: '#ec4899', 7: '#14b8a6', 8: '#3b82f6', 9: '#10b981', 10: '#eab308', 11: '#6366f1'
     };
 
     window.onload = () => {
@@ -280,10 +270,7 @@
         data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 8, maxBarThickness: 65 }] },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { 
-            legend: { display: false }, 
-            datalabels: { color: '#ffffff', anchor: 'end', align: 'end', font: { weight: 'bold', size: 13 } } 
-          },
+          plugins: { legend: { display: false }, datalabels: { color: '#ffffff', anchor: 'end', align: 'end', font: { weight: 'bold', size: 13 } } },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { weight: 'bold' } } },
             y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, beginAtZero: true }
@@ -309,7 +296,8 @@
       if (Array.isArray(data)) {
         registrosPiso = data.map(item => ({
           fecha: String(item.Fecha_Hora || item.fecha || ''),
-          patente: String(item.Patente_Camion || item.patente || ''),
+          patente: String(item.Patente_Camion || item.patente || '-'),
+          turno: String(item.Turno || item.turno || '-'),
           grua: String(item.No_Grua || item.grua || ''),
           operador: String(item.Operador || item.operador || ''),
           tipo: String(item.Tipo_Operacion || item.tipo || ''),
@@ -344,7 +332,6 @@
       const fInicio = new Date(fInicioStr + 'T00:00:00');
       const fFin = new Date(fFinStr + 'T23:59:59');
 
-      // 1. Filtrar registros del periodo
       const historialFiltrado = registrosPiso.filter(r => {
         let fReg = new Date(r.fecha);
         if (isNaN(fReg.getTime())) fReg = new Date(r.fecha.replace(' ', 'T'));
@@ -353,7 +340,6 @@
 
       renderTablaHistorial(historialFiltrado);
 
-      // Ordenar cronológicamente
       const historialOrdenadoCronologico = [...historialFiltrado].sort((a, b) => {
         let fA = new Date(a.fecha.replace(' ', 'T'));
         let fB = new Date(b.fecha.replace(' ', 'T'));
@@ -361,7 +347,7 @@
       });
 
       const acumuladoGrafico = {};
-      const mesIndiceAsociado = {}; // Guarda el número de mes para asignar el color único
+      const mesIndiceAsociado = {};
       const diasUnicosConMovimiento = new Set();
       let totalPalletsPeriodo = 0;
 
@@ -382,7 +368,7 @@
           }
 
           acumuladoGrafico[claveGrafico] = (acumuladoGrafico[claveGrafico] || 0) + r.pallets;
-          mesIndiceAsociado[claveGrafico] = numMes; // Asocia la barra con su mes correspondiente
+          mesIndiceAsociado[claveGrafico] = numMes;
           totalPalletsPeriodo += r.pallets;
           diasUnicosConMovimiento.add(fReg.toISOString().slice(0, 10));
         }
@@ -391,11 +377,7 @@
       const labelsChart = Object.keys(acumuladoGrafico);
       const dataChart = Object.values(acumuladoGrafico);
 
-      // ASIGNACIÓN DE COLOR: Se busca el color correspondiente al mes de CADA BARRA
-      const coloresBarras = labelsChart.map(clave => {
-        const idxMes = mesIndiceAsociado[clave];
-        return coloresPorMes[idxMes] || '#3b82f6';
-      });
+      const coloresBarras = labelsChart.map(clave => coloresPorMes[mesIndiceAsociado[clave]] || '#3b82f6');
 
       if (labelsChart.length === 0) {
         chartInstance.data.labels = ['Sin Datos'];
@@ -408,7 +390,6 @@
       }
       chartInstance.update();
 
-      // Recalcular KPIs
       const ops = parseFloat(document.getElementById('numOperadores').value) || 7;
       const gruas = parseFloat(document.getElementById('numGruas').value) || 3.5;
       const hrs = parseFloat(document.getElementById('horasTurno').value) || 7.5;
@@ -436,7 +417,7 @@
       tbody.innerHTML = '';
 
       if (lista.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">No hay movimientos registrados en este rango de fechas.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-500">No hay movimientos registrados en este rango de fechas.</td></tr>`;
         return;
       }
 
@@ -449,6 +430,7 @@
         const row = `<tr>
           <td class="p-2 text-slate-400">${r.fecha}</td>
           <td class="p-2 font-bold text-amber-400">${r.patente}</td>
+          <td class="p-2 text-slate-300">${r.turno}</td>
           <td class="p-2">${r.grua}</td>
           <td class="p-2">${r.operador}</td>
           <td class="p-2 font-semibold ${colorClase}">${r.tipo}</td>
@@ -469,16 +451,13 @@
     function evaluarCamposPorTipo() {
       const tipo = document.getElementById('inputTipo').value;
       const contPatente = document.getElementById('contenedorPatente');
-      const contTurno = document.getElementById('contenedorTurno');
       const inputPatente = document.getElementById('inputPatente');
 
       if (tipo === 'Recepción Producto Envasado') {
         contPatente.classList.add('hidden');
-        contTurno.classList.remove('hidden');
         inputPatente.removeAttribute('required');
       } else {
         contPatente.classList.remove('hidden');
-        contTurno.classList.add('hidden');
         inputPatente.setAttribute('required', 'true');
       }
     }
@@ -517,20 +496,22 @@
 
       const tipo = document.getElementById('inputTipo').value;
       let patenteValor = document.getElementById('inputPatente').value.toUpperCase();
+      const turnoValor = document.getElementById('inputTurno').value;
       
       if (tipo === 'Recepción Producto Envasado') {
-        patenteValor = document.getElementById('inputTurno').value;
+        patenteValor = "-";
       }
 
       const f = encodeURIComponent(document.getElementById('inputFecha').value.replace('T', ' '));
       const p = encodeURIComponent(patenteValor);
+      const tur = encodeURIComponent(turnoValor);
       const g = encodeURIComponent(document.getElementById('inputGrua').value);
       const o = encodeURIComponent(document.getElementById('inputOperador').value);
       const t = encodeURIComponent(tipo);
       const c = parseInt(document.getElementById('inputCantidad').value) || 0;
 
       const script = document.createElement('script');
-      script.src = `${URL_GOOGLE_SCRIPT}?fecha=${f}&patente=${p}&grua=${g}&operador=${o}&tipo=${t}&pallets=${c}&callback=confirmarGuardadoVSPT`;
+      script.src = `${URL_GOOGLE_SCRIPT}?fecha=${f}&patente=${p}&turno=${tur}&grua=${g}&operador=${o}&tipo=${t}&pallets=${c}&callback=confirmarGuardadoVSPT`;
       document.body.appendChild(script);
     }
 
